@@ -285,13 +285,19 @@ def mbtiles_metadata_to_disk(mbtiles_file, **kwargs):
     if not silent:
         logger.debug(json.dumps(metadata, indent=2))
 
+def get_value(args, key, default=-1):
+    val = args.get(key)
+    if val is None:
+        return default
+    return val
+
 def mbtiles_to_disk(mbtiles_file, directory_path, **kwargs):
     silent = kwargs.get('silent')
     if not silent:
         logger.debug("Exporting MBTiles to disk")
         logger.debug("%s --> %s" % (mbtiles_file, directory_path))
     con = mbtiles_connect(mbtiles_file, silent)
-    os.mkdir("%s" % directory_path)
+    os.makedirs("%s" % directory_path, exist_ok=True)
     metadata = dict(con.execute('select name, value from metadata;').fetchall())
     json.dump(metadata, open(os.path.join(directory_path, 'metadata.json'), 'w'), indent=4)
     count = con.execute('select count(zoom_level) from tiles;').fetchone()[0]
@@ -307,7 +313,18 @@ def mbtiles_to_disk(mbtiles_file, directory_path, **kwargs):
         formatter_json = {"formatter":formatter}
         open(layer_json, 'w').write(json.dumps(formatter_json))
 
-    tiles = con.execute('select zoom_level, tile_column, tile_row, tile_data from tiles;')
+    tiles = None
+    if get_value(kwargs, 'zoom', -1) >= 0 and get_value(kwargs, 'xmin', -1) >= 0 and get_value(kwargs, 'xmax', -1) >= 0 and get_value(kwargs, 'ymin', -1) >= 0 and get_value(kwargs, 'ymax', -1) >= 0:
+        tiles = con.execute('''select zoom_level, tile_column, tile_row, tile_data
+        from tiles
+        WHERE zoom_level = ?
+          AND (tile_column BETWEEN ? AND ?)
+          AND (tile_row BETWEEN ? AND ?);'''
+        , (kwargs.get('zoom'), kwargs.get('xmin'), kwargs.get('xmax'), kwargs.get('ymin'), kwargs.get('ymax')))
+    elif get_value(kwargs, 'zoom', -1) >= 0:
+        tiles = con.execute('select zoom_level, tile_column, tile_row, tile_data from tiles where zoom_level = ?;', (kwargs.get('zoom'),))
+    else:
+        tiles = con.execute('select zoom_level, tile_column, tile_row, tile_data from tiles;')
     t = tiles.fetchone()
     while t:
         z = t[0]

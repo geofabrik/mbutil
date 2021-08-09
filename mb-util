@@ -58,14 +58,59 @@ if __name__ == '__main__':
         action="store_true",
         default=False)
 
+    parser.add_option('--zoom', dest='zoom',
+        help='''Only export tiles at given zoom level''',
+        type=int)
+
+    parser.add_option('--xmin', dest='xmin',
+        help='''Only export tiles with X index equal or larger than provided''',
+        type=int)
+
+    parser.add_option('--xmax', dest='xmax',
+        help='''Only export tiles with X index smaller or equal than provided''',
+        type=int)
+
+    parser.add_option('--ymin', dest='ymin',
+        help='''Only export tiles with y index equal or larger than provided''',
+        type=int)
+
+    parser.add_option('--ymax', dest='ymax',
+        help='''Only export tiles with Y index smaller or equal than provided''',
+        type=int)
+
+    parser.add_option('--overwrite', dest='overwrite',
+        help='''Overwrite files if they exist already.''',
+        action='store_true',
+        default=False)
+
     (options, args) = parser.parse_args()
+
+    # Find incomplete usage of --xmin/xmax/ymin/ymax and their usage without --zoom
+    if options.xmin is not None or options.xmax is not None or options.ymin is not None or options.ymax is not None:
+        if options.xmin is None or options.ymin is None or options.xmax is None or options.ymax is None:
+            sys.stderr.write('Please specify all four parts of the bounding box or none of them.\n')
+            parser.print_help()
+            sys.exit(1)
+        if options.zoom is None:
+            sys.stderr.write('If a bounding box is specified, --zoom is required as well.\n')
+            parser.print_help()
+            sys.exit(1)
+        if options.zoom is not None and options.zoom < 0 or options.zoom > 19:
+            sys.stderr.write('--zoom must be between 0 and 19.\n')
+            parser.print_help()
+            sys.exit(1)
+        for val in [options.xmin, options.xmax, options.ymin, options.ymax]:
+            if val < 0 or val > 2**options.zoom - 1:
+                sys.stderr.write('xmin/ymin/xmax/ymax must be between 0 and {}.\n'.format(2**options.zoom - 1))
+                parser.print_help()
+                sys.exit(1)
 
     # Transfer operations
     if len(args) != 2:
         parser.print_help()
         sys.exit(1)
 
-    if os.path.isfile(args[0]) and os.path.exists(args[1]):
+    if os.path.isfile(args[0]) and os.path.exists(args[1]) and not options.overwrite:
         sys.stderr.write('To export MBTiles to disk, specify a directory that does not yet exist\n')
         sys.exit(1)
     
@@ -75,7 +120,7 @@ if __name__ == '__main__':
         mbtiles_metadata_to_disk(mbtiles_file, **options.__dict__)
         sys.exit(1)
 
-    if os.path.isfile(args[0]) and not os.path.exists(args[1]):
+    if os.path.isfile(args[0]) and (not os.path.exists(args[1]) or options.overwrite):
         mbtiles_file, directory_path = args
         mbtiles_to_disk(mbtiles_file, directory_path, **options.__dict__)
 
