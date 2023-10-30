@@ -184,8 +184,15 @@ def disk_to_mbtiles(directory_path, mbtiles_file, **kwargs):
         metadata = json.load(open(os.path.join(directory_path, 'metadata.json'), 'r'))
         image_format = kwargs.get('format')
         for name, value in metadata.items():
+            # Force attributes to string if they are not. This makes Tilemaker's metadata.json useable.
+            n = name
+            v = value
+            if type(v) is list and (n == "tiles" or n == "bounds"):
+                v = ",".join([str(e) for e in value])
+            if n == "vector_layers":
+                v = json.dumps(value)
             cur.execute('insert into metadata (name, value) values (?, ?)',
-                (name, value))
+                (n, v))
         if not silent: 
             logger.info('metadata from metadata.json restored')
     except IOError:
